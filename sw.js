@@ -1,4 +1,4 @@
-const CACHE = 'patois-mellois-v1';
+const CACHE = 'wp-stat-v1';
 
 // Assets to pre-cache on install
 const PRE_CACHE = ['./'];
