@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Suivi de match — Water-polo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pool-deep:#072B3D;
+    --pool-surface:#11586E;
+    --pool-surface-2:#0C3F50;
+    --aqua:#4FD9CB;
+    --lane-yellow:#FFC93C;
+    --goal-green:#3ED98B;
+    --turnover-red:#FF6F6F;
+    --info-blue:#6FB7E8;
+    --violet:#B79CFB;
+    --orange:#FFA552;
+    --foul-pink:#FF7AA2;
+    --cap-a:#F4F1E8;
+    --cap-b:#16243A;
+    --text:#F4F1E8;
+    --text-dim:#9FC4CE;
+    --border:rgba(244,241,232,0.14);
+    --radius:14px;
+    --font-display:'Bebas Neue', sans-serif;
+    --font-body:'Work Sans', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:linear-gradient(180deg, var(--pool-deep) 0%, #051C28 100%);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  button, input{font-family:inherit;}
+  button{cursor:pointer;}
+  button:focus-visible, input:focus-visible{outline:2px solid var(--aqua);outline-offset:2px;}
+
+  .app{max-width:1100px;margin:0 auto;padding:0 16px 40px;}
+
+  /* ---------- Header / scoreboard ---------- */
+  .scoreboard{
+    position:relative;
+    background:var(--pool-surface);
+    border-radius:0 0 24px 24px;
+    padding:18px 18px 34px;
+    margin:0 -16px 22px;
+    overflow:hidden;
+  }
+  .scoreboard::after{
+    content:'';
+    position:absolute;left:0;right:0;bottom:0;height:26px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 26' preserveAspectRatio='none'%3E%3Cpath d='M0 13 C 50 26 150 0 200 13 C 250 26 350 0 400 13 L400 26 L0 26 Z' fill='%23072B3D'/%3E%3C/svg%3E");
+    background-repeat:repeat-x;
+    background-size:400px 26px;
+    opacity:.55;
+    animation:wave-scroll 12s linear infinite;
+  }
+  @keyframes wave-scroll{from{background-position-x:0;}to{background-position-x:-400px;}}
+
+  .scoreboard-top{
+    display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:wrap;gap:12px;margin-bottom:16px;position:relative;z-index:1;
+  }
+  .app-title{
+    font-family:var(--font-display);font-size:1.3rem;letter-spacing:.06em;
+    text-transform:uppercase;margin:0;
+  }
+  .app-title span{color:var(--aqua);}
+
+  .period-clock{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .period-control{display:flex;align-items:center;gap:6px;}
+  .period-control button, .clock-controls button{
+    background:var(--pool-surface-2);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+    font-size:1rem;line-height:1;
+  }
+  .period-control button:disabled{opacity:.35;cursor:default;}
+  #periodLabel{
+    font-family:var(--font-mono);font-weight:600;font-size:.8rem;
+    min-width:70px;text-align:center;letter-spacing:.03em;
+  }
+  .clock{
+    font-family:var(--font-mono);font-size:1.5rem;background:var(--pool-surface-2);
+    padding:4px 12px;border-radius:8px;letter-spacing:.05em;
+  }
+  .clock-controls{display:flex;gap:6px;}
+  .clock-controls button{width:auto;padding:0 12px;font-size:.78rem;font-family:var(--font-body);font-weight:600;}
+
+  .score-row{
+    display:flex;align-items:center;justify-content:center;gap:20px;
+    position:relative;z-index:1;
+  }
+  .team-score{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0;}
+  .score{font-family:var(--font-display);font-size:4rem;line-height:1;}
+  .score-sep{font-family:var(--font-display);font-size:2.6rem;color:var(--text-dim);}
+  .team-name-input{
+    background:transparent;border:none;color:var(--text);font-weight:600;
+    font-size:.95rem;text-align:center;border-bottom:1px solid transparent;
+    max-width:100%;width:100%;padding:2px 4px;
+  }
+  .team-name-input:hover{border-bottom-color:var(--border);}
+  .team-name-input:focus{outline:none;border-bottom-color:var(--aqua);}
+
+  @keyframes score-bump{0%{transform:scale(1);}35%{transform:scale(1.22);}100%{transform:scale(1);}}
+  .score-bump{animation:score-bump .4s ease;}
+
+  .legend{
+    text-align:center;color:var(--text-dim);font-size:.75rem;
+    margin:0 0 18px;line-height:1.5;
+  }
+
+  /* ---------- Team panels / roster ---------- */
+  main.teams{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+  .team-panel{background:var(--pool-surface-2);border-radius:var(--radius);padding:14px;}
+  .team-panel h2{
+    font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;
+    font-size:1.05rem;margin:0 0 12px;display:flex;align-items:center;gap:8px;
+  }
+  .team-panel h2::before{
+    content:'';display:inline-block;width:14px;height:14px;border-radius:50%;
+    background:var(--team-color);border:1px solid var(--border);flex-shrink:0;
+  }
+  .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:12px;}
+  .add-player-btn{
+    width:100%;margin-top:12px;padding:10px;border-radius:10px;
+    border:1px dashed var(--border);background:transparent;color:var(--text-dim);
+    font-weight:600;font-size:.8rem;
+  }
+  .add-player-btn:hover{color:var(--text);border-color:var(--aqua);}
+
+  .cap{position:relative;}
+  .cap-select{
+    width:100%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;
+    background:var(--team-color);color:var(--team-color-text);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;padding:4px;transition:transform .15s ease;
+  }
+  .cap-select:hover{transform:translateY(-2px);}
+  .cap-select:active{transform:scale(.95);}
+  .cap-number{font-family:var(--font-display);font-size:1.5rem;line-height:1;}
+  .cap-name{
+    font-size:.55rem;text-transform:uppercase;letter-spacing:.03em;
+    max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .cap.bench .cap-select{opacity:.4;}
+  .cap.flagged .cap-select{box-shadow:0 0 0 3px var(--turnover-red);}
+
+  .goal-badge{
+    position:absolute;top:-6px;left:-6px;background:var(--goal-green);color:#04261A;
+    font-family:var(--font-mono);font-size:.65rem;font-weight:700;border-radius:50%;
+    width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  }
+  .save-badge{
+    position:absolute;top:-6px;right:-6px;background:var(--aqua);color:#04261A;
+    font-family:var(--font-mono);font-size:.65rem;font-weight:700;border-radius:50%;
+    width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  }
+
+  .droplet-toggle{
+    position:absolute;bottom:-6px;right:-6px;width:24px;height:24px;border-radius:50%;
+    border:1px solid var(--border);background:var(--pool-surface-2);
+    display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .droplet-toggle svg{width:13px;height:13px;}
+  .droplet-toggle[data-inplay="true"] svg{fill:var(--aqua);stroke:var(--aqua);}
+  .droplet-toggle[data-inplay="false"] svg{fill:none;stroke:var(--text-dim);stroke-width:2;}
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(4,20,28,.72);
+    display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;
+  }
+  .modal-backdrop[hidden]{display:none;}
+  .player-modal{
+    background:var(--pool-surface);border-radius:var(--radius);
+    max-width:420px;width:100%;padding:18px;max-height:88vh;overflow:auto;
+  }
+  .player-modal header{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .modal-cap{
+    width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:1.3rem;
+  }
+  .modal-id{flex:1;min-width:0;}
+  .modal-team{font-size:.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;}
+  .modal-name-input{
+    background:transparent;border:none;border-bottom:1px solid var(--border);
+    color:var(--text);font-weight:600;font-size:1rem;padding:3px 0;width:100%;
+  }
+  .modal-name-input:focus{outline:none;border-bottom-color:var(--aqua);}
+  .modal-close{
+    background:none;border:none;color:var(--text-dim);font-size:1.6rem;line-height:1;flex-shrink:0;
+  }
+  .modal-stats{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px;
+    margin-bottom:14px;font-family:var(--font-mono);font-size:.65rem;text-align:center;
+    color:var(--text-dim);
+  }
+  .modal-stats div{background:var(--pool-surface-2);border-radius:8px;padding:6px 2px;}
+  .modal-stats .stat-value{
+    display:block;font-family:var(--font-display);font-size:1.25rem;color:var(--text);
+  }
+  .modal-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
+  .action-btn{
+    border:none;border-radius:10px;padding:13px 8px;font-weight:600;
+    font-size:.85rem;color:#04222F;text-align:center;
+  }
+  .action-btn:active{transform:scale(.97);}
+  .action-btn.full-width{grid-column:1/-1;}
+  .sub-toggle-btn{
+    width:100%;padding:11px;border-radius:10px;border:1px solid var(--border);
+    background:transparent;color:var(--text);font-weight:600;
+  }
+
+  /* ---------- Sélecteur de passe décisive ---------- */
+  .assist-title{
+    font-size:.85rem;color:var(--text-dim);margin:0 0 10px;text-align:center;
+  }
+  .assist-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:10px;
+    margin-bottom:12px;
+  }
+  .assist-cap{
+    aspect-ratio:1;border-radius:50%;border:2px solid transparent;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;
+    transition:transform .15s ease;
+  }
+  .assist-cap:hover{transform:translateY(-2px);}
+  .assist-cap:active{transform:scale(.95);}
+  .assist-cap .cap-number{font-family:var(--font-display);font-size:1.3rem;line-height:1;}
+  .assist-cap .cap-name{
+    font-size:.5rem;text-transform:uppercase;letter-spacing:.03em;
+    max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  /* ---------- Log ---------- */
+  .log{background:var(--pool-surface-2);border-radius:var(--radius);padding:14px;}
+  .log-header{
+    display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:wrap;gap:8px;margin-bottom:10px;
+  }
+  .log-header h2{
+    font-family:var(--font-display);text-transform:uppercase;letter-spacing:.04em;
+    margin:0;font-size:1.05rem;
+  }
+  .log-controls{display:flex;gap:8px;flex-wrap:wrap;}
+  .log-controls button{
+    background:var(--pool-surface);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:600;
+  }
+  #resetBtn{border-color:var(--turnover-red);color:var(--turnover-red);}
+  .log-list{
+    list-style:none;margin:0;padding:0;max-height:360px;overflow:auto;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .log-entry{
+    display:flex;align-items:center;gap:10px;background:var(--pool-surface);
+    border-radius:8px;padding:8px 10px;font-size:.85rem;
+  }
+  .log-time{font-family:var(--font-mono);color:var(--text-dim);font-size:.7rem;min-width:78px;}
+  .log-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid var(--border);}
+  .log-text{flex:1;min-width:0;}
+  .log-delete{
+    background:none;border:none;color:var(--text-dim);font-size:1.2rem;line-height:1;flex-shrink:0;
+  }
+  .log-empty{color:var(--text-dim);font-size:.85rem;text-align:center;padding:24px 0;}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:760px){
+    main.teams{grid-template-columns:1fr;}
+  }
+  @media (max-width:480px){
+    .score{font-size:2.6rem;}
+    .score-sep{font-size:1.8rem;}
+    .roster{grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:10px;}
+    .cap-number{font-size:1.2rem;}
+    .app-title{font-size:1.1rem;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .scoreboard::after{animation:none;}
+    .score-bump{animation:none;}
+    .cap-select{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="scoreboard">
+    <div class="scoreboard-top">
+      <h1 class="app-title">Suivi de match <span>water-polo</span></h1>
+      <div class="period-clock">
+        <div class="period-control">
+          <button id="periodPrev" aria-label="Période précédente">‹</button>
+          <span id="periodLabel">Q1</span>
+          <button id="periodNext" aria-label="Période suivante">›</button>
+        </div>
+        <div class="clock" id="clockDisplay">08:00</div>
+        <div class="clock-controls">
+          <button id="clockToggle">Lancer</button>
+          <button id="clockReset" aria-label="Réinitialiser le chronomètre">↺</button>
+        </div>
+      </div>
+    </div>
+    <div class="score-row" aria-live="polite">
+      <div class="team-score">
+        <input class="team-name-input" id="teamNameA" maxlength="30" aria-label="Nom de l'équipe A">
+        <div class="score" id="scoreA">0</div>
+      </div>
+      <div class="score-sep">:</div>
+      <div class="team-score">
+        <input class="team-name-input" id="teamNameB" maxlength="30" aria-label="Nom de l'équipe B">
+        <div class="score" id="scoreB">0</div>
+      </div>
+    </div>
+  </header>
+
+  <p class="legend">
+    Touchez un bonnet pour ouvrir ses actions (but, tir, perte de balle, exclusion, pénalty concédé, interception, contre, pénalty).
+    Après un but, choisissez le passeur décisif (ou « pas de passe décisive »). L'action « Arrêt » n'apparaît que pour les gardiens (n° 1 et 13).
+    La goutte en bas à droite indique si le joueur est dans l'eau — touchez-la pour un changement.
+    Un contour rouge signale 3 exclusions ou plus.
+  </p>
+
+  <main class="teams">
+    <section class="team-panel" data-team="0" style="--team-color:var(--cap-a); --team-color-text:var(--pool-deep);">
+      <h2><span id="teamHeadingA">Équipe A</span></h2>
+      <div class="roster" id="rosterA"></div>
+    </section>
+    <section class="team-panel" data-team="1" style="--team-color:var(--cap-b); --team-color-text:var(--text);">
+      <h2><span id="teamHeadingB">Équipe B</span></h2>
+      <div class="roster" id="rosterB"></div>
+    </section>
+  </main>
+
+  <section class="log">
+    <div class="log-header">
+      <h2>Journal des actions</h2>
+      <div class="log-controls">
+        <button id="undoBtn">Annuler la dernière action</button>
+        <button id="resetBtn">Réinitialiser le match</button>
+      </div>
+    </div>
+    <ol class="log-list" id="logList"></ol>
+  </section>
+
+  <section class="log">
+    <div class="log-header">
+      <h2>Exporter / importer</h2>
+      <div class="log-controls">
+        <button id="exportCsvBtn">Exporter en CSV</button>
+        <button id="exportJsonBtn">Exporter en JSON</button>
+        <button id="importBtn">Importer un match (JSON)</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+      </div>
+    </div>
+    <p class="legend" id="importStatus" style="margin:0;"></p>
+  </section>
+
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="player-modal" role="dialog" aria-modal="true" aria-labelledby="modalTeamName">
+    <header>
+      <div class="modal-cap" id="modalCapNum"></div>
+      <div class="modal-id">
+        <div class="modal-team" id="modalTeamName"></div>
+        <input class="modal-name-input" id="modalNameInput" placeholder="Nom du joueur" aria-label="Nom du joueur">
+      </div>
+      <button class="modal-close" id="modalClose" aria-label="Fermer">×</button>
+    </header>
+    <div class="modal-stats" id="modalStats"></div>
+    <div class="modal-actions" id="modalActions"></div>
+    <button class="sub-toggle-btn" id="modalSubToggle"></button>
+    <div class="assist-panel" id="assistPanel" hidden>
+      <p class="assist-title">But de #<span id="assistScorerNum"></span> — passe décisive ?</p>
+      <div class="assist-grid" id="assistGrid"></div>
+      <button class="sub-toggle-btn" id="assistSkip">Pas de passe décisive</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ACTIONS = [
+    {key:'but',          label:'But',             shortLabel:'Buts',    color:'var(--goal-green)', isGoal:true},
+    {key:'tir',          label:'Tir',             shortLabel:'Tirs',    color:'var(--info-blue)'},
+    {key:'perte',        label:'Perte de balle',  shortLabel:'Pertes',  color:'var(--turnover-red)'},
+    {key:'exclusion',    label:'Exclusion',       shortLabel:'Exclu.',  color:'var(--lane-yellow)'},
+    {key:'penConcede',   label:'Pénalty concédé', shortLabel:'Pén. concédé', color:'var(--foul-pink)'},
+    {key:'interception', label:'Interception',    shortLabel:'Inter.',  color:'var(--violet)'},
+    {key:'contre',       label:'Contre',          shortLabel:'Contres', color:'var(--info-blue)'},
+    {key:'penOk',        label:'Pénalty marqué',  shortLabel:'Pén. +',  color:'var(--goal-green)', isGoal:true},
+    {key:'penKo',        label:'Pénalty manqué',  shortLabel:'Pén. -',  color:'var(--orange)'}
+  ];
+  // L'arrêt n'est proposé que pour les gardiens : numéros 1 et 13
+  const GK_NUMBERS = [1,13];
+  const GK_ACTION = {key:'arret', label:'Arrêt', shortLabel:'Arrêts', color:'var(--aqua)'};
+  const ALL_ACTIONS = ACTIONS.concat([GK_ACTION]);
+  const ACTION_MAP = Object.fromEntries(ALL_ACTIONS.map(a=>[a.key,a]));
+  // Passe décisive : pas un bouton d'action, juste une stat affichée/exportée
+  const ASSIST_STAT = {key:'assist', shortLabel:'Passes déc.', label:'Passes décisives'};
+  const PERIODS = ['Q1','Q2','Q3','Q4','Prol. 1','Prol. 2','Tirs au but'];
+  const STORAGE_KEY = 'match-state';
+
+  let state = null;
+  let selectedPlayer = null;
+  let assistContext = null;
+  let clockInterval = null;
+
+  function periodClock(idx){
+    if(idx<=3) return 8*60;
+    if(idx<=5) return 3*60;
+    return 0;
+  }
+
+  function defaultState(){
+    return {
+      teamNames:['Bonnets clairs','Bonnets foncés'],
+      players:[
+        Array.from({length:13},(_,i)=>({num:i+1,name:'',inPlay:i<7,stats:{}})),
+        Array.from({length:13},(_,i)=>({num:i+1,name:'',inPlay:i<7,stats:{}}))
+      ],
+      score:[0,0],
+      periodIndex:0,
+      clockSeconds:periodClock(0),
+      clockRunning:false,
+      events:[]
+    };
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function formatClock(s){
+    const m = Math.floor(s/60), sec = s%60;
+    return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+  }
+  function cryptoId(){
+    return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+  }
+
+  async function persist(){
+    try{ await window.storage.set(STORAGE_KEY, JSON.stringify(state), false); }
+    catch(e){ console.error('Sauvegarde impossible', e); }
+  }
+  async function loadState(){
+    try{
+      const res = await window.storage.get(STORAGE_KEY, false);
+      state = res ? JSON.parse(res.value) : defaultState();
+    }catch(e){
+      state = defaultState();
+    }
+  }
+
+  /* ---------- Actions / events ---------- */
+  function logAction(teamIdx, num, actionKey){
+    const action = ACTION_MAP[actionKey];
+    const player = state.players[teamIdx].find(p=>p.num===num);
+    player.stats[actionKey] = (player.stats[actionKey]||0)+1;
+    if(action.isGoal) state.score[teamIdx]++;
+    const id = cryptoId();
+    state.events.unshift({
+      id, teamIdx, num, actionKey,
+      periodIndex:state.periodIndex, clockSeconds:state.clockSeconds
+    });
+    persist();
+    render();
+    if(action.isGoal){
+      flashScore(teamIdx);
+      assistContext = {eventId:id, teamIdx, scorerNum:num};
+    }
+  }
+
+  function logSub(teamIdx, num){
+    const player = state.players[teamIdx].find(p=>p.num===num);
+    const dir = player.inPlay ? 'out' : 'in';
+    player.inPlay = !player.inPlay;
+    state.events.unshift({
+      id:cryptoId(), teamIdx, num, actionKey:'sub', dir,
+      periodIndex:state.periodIndex, clockSeconds:state.clockSeconds
+    });
+    persist();
+    render();
+  }
+
+  function deleteEvent(id){
+    const idx = state.events.findIndex(e=>e.id===id);
+    if(idx===-1) return;
+    const ev = state.events[idx];
+    const player = state.players[ev.teamIdx].find(p=>p.num===ev.num);
+    if(ev.actionKey==='sub'){
+      player.inPlay = !player.inPlay;
+    }else{
+      const action = ACTION_MAP[ev.actionKey];
+      player.stats[ev.actionKey] = Math.max(0,(player.stats[ev.actionKey]||0)-1);
+      if(action.isGoal) state.score[ev.teamIdx] = Math.max(0, state.score[ev.teamIdx]-1);
+      if(ev.assistNum){
+        const passer = state.players[ev.teamIdx].find(p=>p.num===ev.assistNum);
+        if(passer) passer.stats.assist = Math.max(0,(passer.stats.assist||0)-1);
+      }
+    }
+    if(assistContext && assistContext.eventId===id) assistContext = null;
+    state.events.splice(idx,1);
+    persist();
+    render();
+  }
+
+  function undoLast(){
+    if(state.events.length) deleteEvent(state.events[0].id);
+  }
+
+  function recordAssist(num){
+    if(!assistContext) return;
+    const {eventId, teamIdx} = assistContext;
+    const ev = state.events.find(e=>e.id===eventId);
+    if(ev){
+      ev.assistNum = num;
+      const passer = state.players[teamIdx].find(p=>p.num===num);
+      if(passer) passer.stats.assist = (passer.stats.assist||0)+1;
+    }
+    assistContext = null;
+    persist();
+    render();
+  }
+
+  /* ---------- Clock / period ---------- */
+  function startClock(){
+    if(state.clockRunning) return;
+    state.clockRunning = true;
+    clockInterval = setInterval(()=>{
+      if(state.clockSeconds>0){
+        state.clockSeconds--;
+        renderClock();
+        if(state.clockSeconds%15===0) persist();
+      }else{
+        pauseClock();
+      }
+    },1000);
+    renderClock();
+  }
+  function pauseClock(){
+    state.clockRunning = false;
+    clearInterval(clockInterval);
+    persist();
+    renderClock();
+  }
+  function toggleClock(){ state.clockRunning ? pauseClock() : startClock(); }
+  function resetClock(){
+    pauseClock();
+    state.clockSeconds = periodClock(state.periodIndex);
+    persist();
+    renderClock();
+  }
+  function changePeriod(delta){
+    const next = state.periodIndex+delta;
+    if(next<0 || next>PERIODS.length-1) return;
+    pauseClock();
+    state.periodIndex = next;
+    state.clockSeconds = periodClock(state.periodIndex);
+    persist();
+    render();
+  }
+
+  /* ---------- Rendering ---------- */
+  function render(){
+    renderScoreboard();
+    renderRosters();
+    renderLog();
+    if(!modalBackdrop.hidden) renderModal();
+  }
+
+  function renderScoreboard(){
+    document.getElementById('scoreA').textContent = state.score[0];
+    document.getElementById('scoreB').textContent = state.score[1];
+    document.getElementById('periodLabel').textContent = PERIODS[state.periodIndex];
+    document.getElementById('periodPrev').disabled = state.periodIndex===0;
+    document.getElementById('periodNext').disabled = state.periodIndex===PERIODS.length-1;
+    const nameA = document.getElementById('teamNameA');
+    const nameB = document.getElementById('teamNameB');
+    if(document.activeElement!==nameA) nameA.value = state.teamNames[0];
+    if(document.activeElement!==nameB) nameB.value = state.teamNames[1];
+    renderClock();
+  }
+  function renderClock(){
+    document.getElementById('clockDisplay').textContent = formatClock(state.clockSeconds);
+    document.getElementById('clockToggle').textContent = state.clockRunning ? 'Pause' : 'Lancer';
+  }
+  function flashScore(teamIdx){
+    const el = document.getElementById(teamIdx===0?'scoreA':'scoreB');
+    el.classList.remove('score-bump');
+    void el.offsetWidth;
+    el.classList.add('score-bump');
+  }
+
+  function renderRosters(){
+    renderRoster(0, document.getElementById('rosterA'));
+    renderRoster(1, document.getElementById('rosterB'));
+    document.getElementById('teamHeadingA').textContent = state.teamNames[0];
+    document.getElementById('teamHeadingB').textContent = state.teamNames[1];
+  }
+  function renderRoster(teamIdx, el){
+    el.innerHTML = state.players[teamIdx].map(p=>{
+      const goals = (p.stats.but||0)+(p.stats.penOk||0);
+      const saves = p.stats.arret||0;
+      const isGK = GK_NUMBERS.includes(p.num);
+      const flagged = (p.stats.exclusion||0) >= 3;
+      const label = p.name ? escapeHtml(p.name) : ('Joueur '+p.num);
+      return '<div class="cap '+(p.inPlay?'':'bench')+' '+(flagged?'flagged':'')+'">'
+        + '<button class="cap-select" data-num="'+p.num+'" aria-label="'+label+', numéro '+p.num+'">'
+        +   '<span class="cap-number">'+p.num+'</span>'
+        +   (p.name ? '<span class="cap-name">'+escapeHtml(p.name)+'</span>' : '')
+        +   (goals>0 ? '<span class="goal-badge">'+goals+'</span>' : '')
+        +   (isGK && saves>0 ? '<span class="save-badge">'+saves+'</span>' : '')
+        + '</button>'
+        + '<button class="droplet-toggle" data-num="'+p.num+'" data-inplay="'+p.inPlay+'" aria-label="'
+        +   (p.inPlay ? 'Sortir' : 'Faire entrer')+' '+label+'">'
+        +   '<svg viewBox="0 0 24 24"><path d="M12 2C12 2 5 10.5 5 15a7 7 0 0014 0c0-4.5-7-13-7-13z"/></svg>'
+        + '</button>'
+      + '</div>';
+    }).join('');
+  }
+
+  function renderLog(){
+    const logList = document.getElementById('logList');
+    if(state.events.length===0){
+      logList.innerHTML = "<li class=\"log-empty\">Aucune action enregistrée pour l'instant.</li>";
+      return;
+    }
+    logList.innerHTML = state.events.map(ev=>{
+      const p = state.players[ev.teamIdx].find(pl=>pl.num===ev.num);
+      const name = p.name ? escapeHtml(p.name) : ('Joueur '+p.num);
+      let label;
+      if(ev.actionKey==='sub'){
+        label = ev.dir==='in' ? "entre dans l'eau" : "sort de l'eau";
+      }else{
+        label = ACTION_MAP[ev.actionKey].label.toLowerCase();
+        if(ev.assistNum){
+          const passer = state.players[ev.teamIdx].find(pl=>pl.num===ev.assistNum);
+          const passerName = passer && passer.name ? escapeHtml(passer.name) : ('Joueur '+ev.assistNum);
+          label += ' (passe : #'+ev.assistNum+' '+passerName+')';
+        }
+      }
+      const teamColor = ev.teamIdx===0 ? 'var(--cap-a)' : 'var(--cap-b)';
+      return '<li class="log-entry">'
+        + '<span class="log-time">'+PERIODS[ev.periodIndex]+' · '+formatClock(ev.clockSeconds)+'</span>'
+        + '<span class="log-dot" style="background:'+teamColor+'"></span>'
+        + '<span class="log-text">#'+p.num+' '+name+' — '+label+'</span>'
+        + '<button class="log-delete" data-id="'+ev.id+'" aria-label="Supprimer cette action">×</button>'
+      + '</li>';
+    }).join('');
+  }
+
+  /* ---------- Modal ---------- */
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modalCapNum = document.getElementById('modalCapNum');
+  const modalTeamName = document.getElementById('modalTeamName');
+  const modalNameInput = document.getElementById('modalNameInput');
+  const modalStats = document.getElementById('modalStats');
+  const modalActions = document.getElementById('modalActions');
+  const modalSubToggle = document.getElementById('modalSubToggle');
+  const assistPanel = document.getElementById('assistPanel');
+  const assistScorerNum = document.getElementById('assistScorerNum');
+  const assistGrid = document.getElementById('assistGrid');
+  const assistSkip = document.getElementById('assistSkip');
+
+  function openModal(teamIdx, num){
+    assistContext = null; // par sécurité, on annule toute sélection de passe en attente
+    selectedPlayer = {team:teamIdx, num};
+    renderModal();
+    modalBackdrop.hidden = false;
+  }
+  function closeModal(){
+    assistContext = null;
+    modalBackdrop.hidden = true;
+    selectedPlayer = null;
+  }
+  function renderModal(){
+    if(assistContext){
+      renderAssistPanel();
+      return;
+    }
+    assistPanel.hidden = true;
+    modalStats.hidden = false;
+    modalActions.hidden = false;
+    modalSubToggle.hidden = false;
+
+    if(!selectedPlayer) return;
+    const {team, num} = selectedPlayer;
+    const p = state.players[team].find(pl=>pl.num===num);
+    const isGK = GK_NUMBERS.includes(p.num);
+    const actionsForPlayer = isGK ? ALL_ACTIONS : ACTIONS;
+    const statsForPlayer = actionsForPlayer.concat([ASSIST_STAT]);
+
+    modalCapNum.textContent = p.num;
+    modalCapNum.style.background = team===0 ? 'var(--cap-a)' : 'var(--cap-b)';
+    modalCapNum.style.color = team===0 ? 'var(--pool-deep)' : 'var(--text)';
+    modalTeamName.textContent = state.teamNames[team];
+    modalNameInput.placeholder = 'Joueur '+p.num;
+    modalNameInput.value = p.name || '';
+
+    modalStats.innerHTML = statsForPlayer.map(a=>
+      '<div><span class="stat-value">'+(p.stats[a.key]||0)+'</span>'+a.shortLabel+'</div>'
+    ).join('');
+
+    modalActions.innerHTML = actionsForPlayer.map((a,i)=>{
+      const fullWidth = (actionsForPlayer.length % 2 === 1 && i === actionsForPlayer.length-1) ? ' full-width' : '';
+      return '<button class="action-btn'+fullWidth+'" data-action="'+a.key+'" style="background:'+a.color+'">'+a.label+'</button>';
+    }).join('');
+
+    modalSubToggle.textContent = p.inPlay ? 'Faire sortir (changement)' : 'Faire entrer (changement)';
+  }
+
+  function renderAssistPanel(){
+    modalStats.hidden = true;
+    modalActions.hidden = true;
+    modalSubToggle.hidden = true;
+    assistPanel.hidden = false;
+
+    const {teamIdx, scorerNum} = assistContext;
+    const scorer = state.players[teamIdx].find(pl=>pl.num===scorerNum);
+    const teamColor = teamIdx===0 ? 'var(--cap-a)' : 'var(--cap-b)';
+    const teamTextColor = teamIdx===0 ? 'var(--pool-deep)' : 'var(--text)';
+
+    modalCapNum.textContent = scorer.num;
+    modalCapNum.style.background = teamColor;
+    modalCapNum.style.color = teamTextColor;
+    modalTeamName.textContent = state.teamNames[teamIdx];
+    modalNameInput.placeholder = 'Joueur '+scorer.num;
+    modalNameInput.value = scorer.name || '';
+    assistScorerNum.textContent = scorer.num;
+
+    assistGrid.innerHTML = state.players[teamIdx].filter(pl=>pl.num!==scorerNum).map(pl=>{
+      const plName = pl.name ? escapeHtml(pl.name) : '';
+      const plLabel = pl.name ? escapeHtml(pl.name) : ('Joueur '+pl.num);
+      return '<button class="assist-cap" data-num="'+pl.num+'" style="background:'+teamColor+';color:'+teamTextColor+'" aria-label="Passe décisive de '+plLabel+'">'
+        + '<span class="cap-number">'+pl.num+'</span>'
+        + (plName ? '<span class="cap-name">'+plName+'</span>' : '')
+      + '</button>';
+    }).join('');
+  }
+
+  /* ---------- Event bindings ---------- */
+  document.getElementById('rosterA').addEventListener('click', e=>onRosterClick(e,0));
+  document.getElementById('rosterB').addEventListener('click', e=>onRosterClick(e,1));
+  function onRosterClick(e, teamIdx){
+    const drop = e.target.closest('.droplet-toggle');
+    if(drop){ logSub(teamIdx, Number(drop.dataset.num)); return; }
+    const cap = e.target.closest('.cap-select');
+    if(cap){ openModal(teamIdx, Number(cap.dataset.num)); }
+  }
+
+  modalActions.addEventListener('click', e=>{
+    const btn = e.target.closest('.action-btn');
+    if(!btn || !selectedPlayer) return;
+    logAction(selectedPlayer.team, selectedPlayer.num, btn.dataset.action);
+    renderModal();
+  });
+  modalSubToggle.addEventListener('click', ()=>{
+    if(!selectedPlayer) return;
+    logSub(selectedPlayer.team, selectedPlayer.num);
+    renderModal();
+  });
+  assistGrid.addEventListener('click', e=>{
+    const btn = e.target.closest('.assist-cap');
+    if(!btn || !assistContext) return;
+    recordAssist(Number(btn.dataset.num));
+  });
+  assistSkip.addEventListener('click', ()=>{
+    assistContext = null;
+    renderModal();
+  });
+  modalNameInput.addEventListener('input', ()=>{
+    if(!selectedPlayer) return;
+    const p = state.players[selectedPlayer.team].find(pl=>pl.num===selectedPlayer.num);
+    p.name = modalNameInput.value;
+    renderRosters();
+    renderLog();
+  });
+  modalNameInput.addEventListener('change', persist);
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  modalBackdrop.addEventListener('click', e=>{ if(e.target===modalBackdrop) closeModal(); });
+
+  document.getElementById('periodPrev').addEventListener('click', ()=>changePeriod(-1));
+  document.getElementById('periodNext').addEventListener('click', ()=>changePeriod(1));
+  document.getElementById('clockToggle').addEventListener('click', toggleClock);
+  document.getElementById('clockReset').addEventListener('click', resetClock);
+
+  document.getElementById('teamNameA').addEventListener('input', e=>{ state.teamNames[0]=e.target.value; renderRosters(); });
+  document.getElementById('teamNameB').addEventListener('input', e=>{ state.teamNames[1]=e.target.value; renderRosters(); });
+  document.getElementById('teamNameA').addEventListener('change', persist);
+  document.getElementById('teamNameB').addEventListener('change', persist);
+
+  document.getElementById('undoBtn').addEventListener('click', undoLast);
+  document.getElementById('logList').addEventListener('click', e=>{
+    const btn = e.target.closest('.log-delete');
+    if(btn) deleteEvent(btn.dataset.id);
+  });
+
+  let resetArmed = false;
+  const resetBtn = document.getElementById('resetBtn');
+  resetBtn.addEventListener('click', ()=>{
+    if(!resetArmed){
+      resetArmed = true;
+      resetBtn.textContent = 'Confirmer la réinitialisation ?';
+      setTimeout(()=>{ resetArmed=false; resetBtn.textContent='Réinitialiser le match'; }, 3000);
+    }else{
+      resetArmed = false;
+      resetBtn.textContent = 'Réinitialiser le match';
+      pauseClock();
+      state = defaultState();
+      persist();
+      render();
+    }
+  });
+
+  /* ---------- Export / import ---------- */
+  function slugify(s){
+    return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'equipe';
+  }
+  function csvField(v){
+    v = (v===undefined || v===null) ? '' : String(v);
+    if(/[;"\n]/.test(v)) v = '"'+v.replace(/"/g,'""')+'"';
+    return v;
+  }
+  function downloadFile(filename, content, mime){
+    const blob = new Blob([content], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  }
+  function matchFilenameBase(){
+    return 'match-'+slugify(state.teamNames[0])+'-vs-'+slugify(state.teamNames[1])+'-'+new Date().toISOString().slice(0,10);
+  }
+  function showStatus(msg, type){
+    const el = document.getElementById('importStatus');
+    el.textContent = msg;
+    el.style.color = type==='error' ? 'var(--turnover-red)' : 'var(--goal-green)';
+    clearTimeout(showStatus._t);
+    showStatus._t = setTimeout(()=>{ el.textContent=''; }, 6000);
+  }
+
+  function exportJSON(){
+    downloadFile(matchFilenameBase()+'.json', JSON.stringify(state,null,2), 'application/json');
+  }
+
+  function exportCSV(){
+    const rows = [];
+    rows.push(['Match', state.teamNames[0]+' vs '+state.teamNames[1]]);
+    rows.push(['Score final', state.score[0]+' - '+state.score[1]]);
+    rows.push(['Date export', new Date().toLocaleString('fr-FR')]);
+    rows.push([]);
+    rows.push(['Journal des actions']);
+    rows.push(['Période','Temps','Équipe','Numéro','Joueur','Action']);
+    [...state.events].reverse().forEach(ev=>{
+      const p = state.players[ev.teamIdx].find(pl=>pl.num===ev.num);
+      const name = p.name || ('Joueur '+p.num);
+      let label;
+      if(ev.actionKey==='sub'){
+        label = ev.dir==='in' ? "Entrée d'eau" : "Sortie d'eau";
+      }else{
+        label = ACTION_MAP[ev.actionKey].label;
+        if(ev.assistNum){
+          const passer = state.players[ev.teamIdx].find(pl=>pl.num===ev.assistNum);
+          const passerName = passer ? (passer.name || ('Joueur '+ev.assistNum)) : ('Joueur '+ev.assistNum);
+          label += ' (passe : #'+ev.assistNum+' '+passerName+')';
+        }
+      }
+      rows.push([PERIODS[ev.periodIndex], formatClock(ev.clockSeconds), state.teamNames[ev.teamIdx], p.num, name, label]);
+    });
+    rows.push([]);
+    rows.push(['Statistiques par joueur']);
+    const statCols = ALL_ACTIONS.concat([ASSIST_STAT]);
+    rows.push(['Équipe','Numéro','Joueur', ...statCols.map(a=>a.label)]);
+    state.players.forEach((team,teamIdx)=>{
+      team.forEach(p=>{
+        const name = p.name || ('Joueur '+p.num);
+        rows.push([state.teamNames[teamIdx], p.num, name, ...statCols.map(a=>p.stats[a.key]||0)]);
+      });
+    });
+    const csv = rows.map(r=>r.map(csvField).join(';')).join('\r\n');
+    downloadFile(matchFilenameBase()+'.csv', '\ufeff'+csv, 'text/csv;charset=utf-8;');
+  }
+
+  document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+  document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+  document.getElementById('importBtn').addEventListener('click', ()=>{
+    document.getElementById('importFile').click();
+  });
+  document.getElementById('importFile').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(!data || !Array.isArray(data.players) || data.players.length!==2
+           || !Array.isArray(data.events) || !Array.isArray(data.score)
+           || !Array.isArray(data.teamNames)){
+          throw new Error('format invalide');
+        }
+        pauseClock();
+        closeModal();
+        state = data;
+        if(typeof state.periodIndex!=='number') state.periodIndex = 0;
+        if(typeof state.clockSeconds!=='number') state.clockSeconds = periodClock(state.periodIndex);
+        state.clockRunning = false;
+        persist();
+        render();
+        showStatus('Match importé avec succès.', 'ok');
+      }catch(err){
+        showStatus("Fichier invalide : ce n'est pas un export de match reconnu.", 'error');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  /* ---------- Init ---------- */
+  (async function init(){
+    await loadState();
+    render();
+  })();
+</script>
+</body>
+</html>
